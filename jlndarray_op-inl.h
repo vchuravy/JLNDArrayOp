@@ -17,6 +17,7 @@
 #include <string>
 #include <utility>
 #include <sstream>
+#include "jlrtc.h"
 
 namespace mxnet {
 namespace op {
@@ -36,6 +37,9 @@ class JLNDArrayOp : public Operator {
  public:
   explicit JLNDArrayOp(JLNDArrayOpParam p) {
     this->param_ = p;
+    // TODO: Setup JLRtc
+    this->backwards_jlrtc_ = JLRtc("", std::vector<NDArray>(), NULL, 0,0,0,0,0,0);
+    this->forwards_jlrtc_ = JLRtc("", std::vector<NDArray>(), NULL, 0,0,0,0,0,0);
   }
 
   virtual void Forward(const OpContext &ctx,
@@ -59,6 +63,8 @@ class JLNDArrayOp : public Operator {
  private:
   JLNDArrayOpParam param_;
   Context get_ctx();
+  JLRtc forwards_jlrtc_;
+  JLRtc backwards_jlrtc_;
 };  // NDArrayOp
 
 template<typename xpu>

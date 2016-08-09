@@ -10,6 +10,7 @@ namespace mxnet {
 
 class JLRtc {
   public:
+    JLRtc() {};
     JLRtc(const std::string& name,
           std::vector<NDArray> const& args,
           char* ptx,

@@ -42,32 +42,42 @@ void JLNDArrayOp<xpu>::Forward(const OpContext &ctx,
                    const std::vector<TBlob> &aux_args) {
   using namespace mshadow;
   Context ndctx = get_ctx();
-  std::vector<void*> ptrs;
+  std::vector<NDArray> args;
+  // ndvar is for the outer sync point
   std::vector<Engine::VarHandle> ndvar;
-  std::vector<int> tags;
+  // var_in, var_out is for the inner sync point
+  std::vector<Engine::VarHandle> var_in, var_out;
+
   for (auto& i : req) CHECK_NE(i, kAddTo);
 
   for (auto& blob : in_data) {
-    ptrs.push_back(reinterpret_cast<void*>(new NDArray(blob, ndctx.dev_id)));
-    tags.push_back(0);
+    NDArray nd = NDArray(blob, ndctx.dev_id);
+    args.push_back(nd);
+    var_in.push_back(nd.var());
   }
   for (auto& blob : out_data) {
-    NDArray* nd = new NDArray(blob, ndctx.dev_id);
-    ptrs.push_back(reinterpret_cast<void*>(nd));
-    ndvar.push_back(nd->var());
-    tags.push_back(1);
+    NDArray nd = NDArray(blob, ndctx.dev_id);
+    args.push_back(nd);
+    var_out.push_back(nd.var());
+    ndvar.push_back(nd.var());
   }
+
   std::sort(ndvar.begin(), ndvar.end());
   ndvar.resize(std::unique(ndvar.begin(), ndvar.end()) - ndvar.begin());
 
-  std::vector<NDArray> ndcpy;
-  for (auto& i : ptrs) {
-    ndcpy.push_back(*reinterpret_cast<NDArray*>(i));
-  }
+  // Verify signature of arguments & get function from jlrtc
+  forwards_jlrtc_.verify(args);
+  CUfunction func = forwards_jlrtc_.getFunc(ndctx.dev_id);
 
-  // TODO: issue call to push in JLRtc directly
-  // CHECK(param_.pinfo->forward(ptrs.size(), ptrs.data(), tags.data(), param_.pinfo->p_forward));
-  Engine::Get()->PushSync([ndcpy, ctx](RunContext rctx) {ctx.async_on_complete(); },
+  auto op = [this, func, args](RunContext rctx) {
+    forwards_jlrtc_.launch(func, args, rctx);
+  };
+
+  // Issue sync on input arguments and output arguments
+  Engine::Get()->PushSync(op, ndctx, var_in, var_out);
+
+  // Issue read sync on output arguments
+  Engine::Get()->PushSync([args, ctx](RunContext rctx) {ctx.async_on_complete(); },
                           ndctx, ndvar, {});
 }
 
@@ -81,40 +91,52 @@ void JLNDArrayOp<xpu>::Backward(const OpContext &ctx,
                     const std::vector<TBlob> &aux_args) {
   using namespace mshadow;
   Context ndctx = get_ctx();
-  std::vector<void*> ptrs;
+  std::vector<NDArray> args;
+  // ndvar for the outer sync point
   std::vector<Engine::VarHandle> ndvar;
-  std::vector<int> tags;
+  // var_in, var_out is for the inner sync point
+  std::vector<Engine::VarHandle> var_in, var_out;
+
   for (auto& i : req) CHECK_NE(i, kAddTo);
 
   for (auto& blob : in_data) {
-    ptrs.push_back(reinterpret_cast<void*>(new NDArray(blob, ndctx.dev_id)));
-    tags.push_back(0);
+    NDArray nd = NDArray(blob, ndctx.dev_id);
+    args.push_back(nd);
+    var_in.push_back(nd.var());
   }
   for (auto& blob : out_data) {
-    ptrs.push_back(reinterpret_cast<void*>(new NDArray(blob, ndctx.dev_id)));
-    tags.push_back(1);
+    NDArray nd = NDArray(blob, ndctx.dev_id);
+    args.push_back(nd);
+    var_in.push_back(nd.var());
   }
   for (auto& blob : in_grad) {
-    NDArray* nd = new NDArray(blob, ndctx.dev_id);
-    ptrs.push_back(reinterpret_cast<void*>(nd));
-    ndvar.push_back(nd->var());
-    tags.push_back(2);
+    NDArray nd = NDArray(blob, ndctx.dev_id);
+    args.push_back(nd);
+    // Why is in_grad and not out_grad set as ndvar.
+    ndvar.push_back(nd.var());
+    var_out.push_back(nd.var());
   }
   std::sort(ndvar.begin(), ndvar.end());
   ndvar.resize(std::unique(ndvar.begin(), ndvar.end()) - ndvar.begin());
   for (auto& blob : out_grad) {
-    ptrs.push_back(reinterpret_cast<void*>(new NDArray(blob, ndctx.dev_id)));
-    tags.push_back(3);
+    NDArray nd = NDArray(blob, ndctx.dev_id);
+    args.push_back(nd);
+    var_in.push_back(nd.var());
   }
 
-  std::vector<NDArray> ndcpy;
-  for (auto& i : ptrs) {
-    ndcpy.push_back(*reinterpret_cast<NDArray*>(i));
-  }
+  // Verify signature of arguments & get function from jlrtc
+  backwards_jlrtc_.verify(args);
+  CUfunction func = backwards_jlrtc_.getFunc(ndctx.dev_id);
 
-  // TODO: issue call to push in JLRtc directly
-  // CHECK(param_.pinfo->backward(ptrs.size(), ptrs.data(), tags.data(), param_.pinfo->p_backward));
-  Engine::Get()->PushSync([ndcpy, ctx](RunContext rctx){ ctx.async_on_complete(); },
+  auto op = [this, func, args](RunContext rctx) {
+    backwards_jlrtc_.launch(func, args, rctx);
+  };
+
+  // Issue sync on input arguments and output arguments
+  Engine::Get()->PushSync(op, ndctx, var_in, var_out);
+
+  // Issue outer sync
+  Engine::Get()->PushSync([args, ctx](RunContext rctx){ ctx.async_on_complete(); },
                           ndctx, ndvar, {});
 }
 
