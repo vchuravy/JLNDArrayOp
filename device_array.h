@@ -22,9 +22,9 @@ struct DeviceArray {
 namespace mxnet {
 
 template <typename T, size_t N>
-CUdeviceptr convert(NDArray& ndarray);
+CUdeviceptr convert(const NDArray& ndarray);
 
-std::vector<CUdeviceptr> convert(std::vector<NDArray>& ndarrays);
+std::vector<CUdeviceptr> convert(const std::vector<NDArray>& ndarrays);
 
 }
 #endif // DEVICE_ARRAY_H

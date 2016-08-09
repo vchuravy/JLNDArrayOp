@@ -2,7 +2,7 @@
 
 namespace mxnet {
 
-std::vector<CUdeviceptr> convert(std::vector<NDArray>& ndarrays) {
+std::vector<CUdeviceptr> convert(const std::vector<NDArray>& ndarrays) {
   std::vector<CUdeviceptr> cuarrays;
   for (NDArray ndarray : ndarrays) {
     int dtype = ndarray.dtype();
