@@ -26,7 +26,17 @@ struct JLNDArrayOpParam : public dmlc::Parameter<JLNDArrayOpParam> {
   void *info;
 
   NDArrayOpInfo *pinfo;
-  int num_inputs_, num_outputs_;
+  unsigned int grid_dim_X;
+  unsigned int grid_dim_Y;
+  unsigned int grid_dim_Z;
+  unsigned int block_dim_X;
+  unsigned int block_dim_Y;
+  unsigned int block_dim_Z;
+
+  std::vector<int> ndims;
+  std::vector<TShape> shapes;
+  std::vector<int> dtypes;
+
   DMLC_DECLARE_PARAMETER(JLNDArrayOpParam) {
     DMLC_DECLARE_FIELD(info);
   }
@@ -38,8 +48,20 @@ class JLNDArrayOp : public Operator {
   explicit JLNDArrayOp(JLNDArrayOpParam p) {
     this->param_ = p;
     // TODO: Setup JLRtc
-    this->backwards_jlrtc_ = JLRtc("", std::vector<NDArray>(), NULL, 0,0,0,0,0,0);
-    this->forwards_jlrtc_ = JLRtc("", std::vector<NDArray>(), NULL, 0,0,0,0,0,0);
+    // call into this->param_.backward/forward to get ptx.
+    // and name?
+    this->forwards_jlrtc_ = JLRtc("", NULL,
+                                   this->param_.ndims,
+                                   this->param_.shapes,
+                                   this->param_.dtypes,
+                                   this->param_.grid_dim_X,
+                                   this->param_.grid_dim_Y,
+                                   this->param_.grid_dim_Z,
+                                   this->param_.block_dim_X,
+                                   this->param_.block_dim_Y,
+                                   this->param_.block_dim_Z);
+    // TODO: How to get ndims, shapes and dtypes for backwards?
+    // this->backwards_jlrtc_ = JLRtc("", std::vector<NDArray>(), NULL, 0,0,0,0,0,0);
   }
 
   virtual void Forward(const OpContext &ctx,
@@ -104,8 +126,6 @@ class JLNDArrayOpProp : public OperatorProperty {
         sscanf(iter->second.c_str(), "%p", &param_.pinfo);
       }
     }
-    param_.num_inputs_ = ListArguments().size();
-    param_.num_outputs_ = ListOutputs().size();
   }
 
   std::map<std::string, std::string> GetParams() const override {
@@ -133,6 +153,13 @@ class JLNDArrayOpProp : public OperatorProperty {
     for (unsigned i = param_.num_inputs_; i < shapes.size(); ++i) {
       out_shape->push_back(TShape(shapes[i], shapes[i]+ndims[i]));
     }
+
+    std::vector<TShape> tshapes;
+    for (TShape shape: *in_shape) tshapes.push_back(tshape);
+    for (TShape shape: *out_shape) tshapes.push_back(tshape);
+
+    this->param_.ndims = ndims;
+    this->param_.shapes = tshapes;
     return true;
   }
 
