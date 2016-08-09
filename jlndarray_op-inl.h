@@ -5,36 +5,36 @@
  * \author Junyuan Xie
 */
 
-#ifndef MXNET_OPERATOR_NDARRAY_OP_INL_H_
-#define MXNET_OPERATOR_NDARRAY_OP_INL_H_
+#ifndef MXNET_OPERATOR_JLNDARRAY_OP_INL_H_
+#define MXNET_OPERATOR_JLNDARRAY_OP_INL_H_
 #include <dmlc/logging.h>
 #include <dmlc/parameter.h>
 #include <mxnet/operator.h>
+#include "../../src/operator/operator_common.h"
 #include <mxnet/c_api.h>
 #include <map>
 #include <vector>
 #include <string>
 #include <utility>
 #include <sstream>
-#include "./operator_common.h"
 
 namespace mxnet {
 namespace op {
 
-struct NDArrayOpParam : public dmlc::Parameter<NDArrayOpParam> {
+struct JLNDArrayOpParam : public dmlc::Parameter<JLNDArrayOpParam> {
   void *info;
 
   NDArrayOpInfo *pinfo;
   int num_inputs_, num_outputs_;
-  DMLC_DECLARE_PARAMETER(NDArrayOpParam) {
+  DMLC_DECLARE_PARAMETER(JLNDArrayOpParam) {
     DMLC_DECLARE_FIELD(info);
   }
 };
 
 template<typename xpu>
-class NDArrayOp : public Operator {
+class JLNDArrayOp : public Operator {
  public:
-  explicit NDArrayOp(NDArrayOpParam p) {
+  explicit JLNDArrayOp(JLNDArrayOpParam p) {
     this->param_ = p;
   }
 
@@ -57,15 +57,15 @@ class NDArrayOp : public Operator {
   }
 
  private:
-  NDArrayOpParam param_;
+  JLNDArrayOpParam param_;
   Context get_ctx();
 };  // NDArrayOp
 
 template<typename xpu>
-Operator* CreateOp(NDArrayOpParam param);
+Operator* CreateOp(JLNDArrayOpParam param);
 
 #if DMLC_USE_CXX11
-class NDArrayOpProp : public OperatorProperty {
+class JLNDArrayOpProp : public OperatorProperty {
  public:
   std::vector<std::string> ListArguments() const override {
     char ** args = NULL;
@@ -131,7 +131,7 @@ class NDArrayOpProp : public OperatorProperty {
   }
 
   OperatorProperty* Copy() const override {
-    NDArrayOpProp *prop_sym = new NDArrayOpProp();
+    JLNDArrayOpProp *prop_sym = new JLNDArrayOpProp();
     prop_sym->param_ = this->param_;
     return prop_sym;
   }
@@ -165,7 +165,7 @@ class NDArrayOpProp : public OperatorProperty {
   Operator* CreateOperator(Context ctx) const override;
 
  private:
-  NDArrayOpParam param_;
+  JLNDArrayOpParam param_;
 };  // class PythonProp
 #endif  // DMLC_USE_CXX11
 }  // namespace op
