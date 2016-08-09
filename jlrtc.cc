@@ -3,7 +3,21 @@
 namespace mxnet {
 
 JLRtc::JLRtc(const std::string& name,
+             std::vector<NDArray> const& input,
+             std::vector<NDArray> const& output,
              char* ptx) {
+  name_ = name;
+  ptx_ = ptx;
+
+  for (auto& ndarray: input) {
+    in_dtypes_.push_back(ndarray.dtype());
+    in_shapes_.push_back(ndarray.shape());
+  }
+
+  for (auto& ndarray: output) {
+    out_dtypes_.push_back(ndarray.dtype());
+    out_shapes_.push_back(ndarray.shape());
+  }
 
 }
 
@@ -15,9 +29,19 @@ void JLRtc::push(std::vector<NDArray> const& input,
                  unsigned int block_dim_X,
                  unsigned int block_dim_Y,
                  unsigned int block_dim_Z) {
-  CHECK_EQ(num_input_, input.size());
-  CHECK_EQ(num_output_, output.size());
+  CHECK_EQ(in_dtypes_.size(), input.size());
+  CHECK_EQ(out_dtypes_.size(), output.size());
   CHECK(output.size());
+
+  for (size_t i = 0; i < input.size(); ++i) {
+    CHECK_EQ(in_dtypes_[i], input[i].dtype());
+    CHECK_EQ(in_shapes_[i], input[i].shape());
+  }
+
+  for (size_t i = 0; i < output.size(); ++i) {
+    CHECK_EQ(out_dtypes_[i], output[i].dtype());
+    CHECK_EQ(out_shapes_[i], output[i].shape());
+  }
 
   cudaError_enum err;
   CUfunction func;

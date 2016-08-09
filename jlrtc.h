@@ -11,6 +11,8 @@ namespace mxnet {
 class JLRtc {
   public:
     JLRtc(const std::string& name,
+          std::vector<NDArray> const& input,
+          std::vector<NDArray> const& output,
           char* ptx);
 
     void push(std::vector<NDArray> const& input,
@@ -25,8 +27,10 @@ class JLRtc {
   private:
     std::string name_;
     char* ptx_;
-    size_t num_input_;
-    size_t num_output_;
+    std::vector<int> in_dtypes_;
+    std::vector<int> out_dtypes_;
+    std::vector<TShape> in_shapes_;
+    std::vector<TShape> out_shapes_;
     std::unordered_map<int, CUmodule> module_;
     std::unordered_map<int, CUfunction> func_;
 };
