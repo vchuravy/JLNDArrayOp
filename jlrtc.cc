@@ -3,8 +3,9 @@
 namespace mxnet {
 
 JLRtc::JLRtc(const std::string& name,
-          std::vector<NDArray> const& args,
           char* ptx,
+          std::vector<size_t>& ndims,
+          std::vector<int>& dtypes,
           unsigned int grid_dim_X,
           unsigned int grid_dim_Y,
           unsigned int grid_dim_Z,
@@ -13,12 +14,8 @@ JLRtc::JLRtc(const std::string& name,
           unsigned int block_dim_Z) {
   name_ = name;
   ptx_ = ptx;
-
-  for (auto& ndarray: args) {
-    dtypes_.push_back(ndarray.dtype());
-    shapes_.push_back(ndarray.shape());
-  }
-
+  ndims_ = ndims;
+  dtypes_ = dtypes;
 }
 
 void JLRtc::verify(std::vector<NDArray> const& ndargs) {
@@ -27,7 +24,7 @@ void JLRtc::verify(std::vector<NDArray> const& ndargs) {
 
   for (size_t i = 0; i < ndargs.size(); ++i) {
     CHECK_EQ(dtypes_[i], ndargs[i].dtype());
-    CHECK_EQ(shapes_[i], ndargs[i].shape());
+    CHECK_EQ(ndims_[i],  ndargs[i].shape().ndim());
   }
 }
 

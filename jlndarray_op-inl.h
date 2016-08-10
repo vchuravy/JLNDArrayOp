@@ -33,9 +33,12 @@ struct JLNDArrayOpParam : public dmlc::Parameter<JLNDArrayOpParam> {
   unsigned int block_dim_Y;
   unsigned int block_dim_Z;
 
-  std::vector<int> ndims;
-  std::vector<TShape> shapes;
-  std::vector<int> dtypes;
+  int num_outputs_;
+  int num_inputs_;
+  std::vector<size_t> f_ndims_;
+  std::vector<size_t> b_ndims_;
+  std::vector<int> f_dtypes_;
+  std::vector<int> b_dtypes_;
 
   DMLC_DECLARE_PARAMETER(JLNDArrayOpParam) {
     DMLC_DECLARE_FIELD(info);
@@ -51,17 +54,24 @@ class JLNDArrayOp : public Operator {
     // call into this->param_.backward/forward to get ptx.
     // and name?
     this->forwards_jlrtc_ = JLRtc("", NULL,
-                                   this->param_.ndims,
-                                   this->param_.shapes,
-                                   this->param_.dtypes,
+                                  this->param_.f_ndims_,
+                                  this->param_.f_dtypes_,
+                                  this->param_.grid_dim_X,
+                                  this->param_.grid_dim_Y,
+                                  this->param_.grid_dim_Z,
+                                  this->param_.block_dim_X,
+                                  this->param_.block_dim_Y,
+                                  this->param_.block_dim_Z);
+
+    this->backwards_jlrtc_ = JLRtc("", NULL,
+                                   this->param_.b_ndims_,
+                                   this->param_.b_dtypes_,
                                    this->param_.grid_dim_X,
                                    this->param_.grid_dim_Y,
                                    this->param_.grid_dim_Z,
                                    this->param_.block_dim_X,
                                    this->param_.block_dim_Y,
                                    this->param_.block_dim_Z);
-    // TODO: How to get ndims, shapes and dtypes for backwards?
-    // this->backwards_jlrtc_ = JLRtc("", std::vector<NDArray>(), NULL, 0,0,0,0,0,0);
   }
 
   virtual void Forward(const OpContext &ctx,
@@ -136,6 +146,7 @@ class JLNDArrayOpProp : public OperatorProperty {
   bool InferShape(std::vector<TShape> *in_shape,
                   std::vector<TShape> *out_shape,
                   std::vector<TShape> *aux_shape) const override {
+    CHECK_EQ(aux_shape->size(), 0);
     std::vector<unsigned*> shapes;
     std::vector<int> ndims;
     for (auto iter = in_shape->begin(); iter != in_shape->end(); ++iter) {
@@ -153,13 +164,61 @@ class JLNDArrayOpProp : public OperatorProperty {
     for (unsigned i = param_.num_inputs_; i < shapes.size(); ++i) {
       out_shape->push_back(TShape(shapes[i], shapes[i]+ndims[i]));
     }
+    // This is a ugly hack...
+    JLNDArrayOpProp* nc_this = const_cast<JLNDArrayOpProp*>(this);
 
-    std::vector<TShape> tshapes;
-    for (TShape shape: *in_shape) tshapes.push_back(tshape);
-    for (TShape shape: *out_shape) tshapes.push_back(tshape);
+    // ndims contains [[in_ndims], [out_ndims]]
+    nc_this->param_.f_ndims_.clear();
+    nc_this->param_.f_ndims_.insert(std::end(this->param_.f_ndims_), std::begin(ndims), std::end(ndims));
+    // backwards call is (in_grads..., out_grads..., in_data..., out_data...)
+    nc_this->param_.b_ndims_.clear();
+    nc_this->param_.b_ndims_.insert(std::end(this->param_.b_ndims_), std::begin(ndims), std::end(ndims));
+    nc_this->param_.b_ndims_.insert(std::end(this->param_.b_ndims_), std::begin(ndims), std::end(ndims));
+    return true;
+  }
 
-    this->param_.ndims = ndims;
-    this->param_.shapes = tshapes;
+  bool InferType(std::vector<int> *in_dtypes,
+                 std::vector<int> *out_dtypes,
+                 std::vector<int> *aux_dtypes) const override {
+    CHECK_EQ(aux_dtypes->size(), 0);
+    std::vector<int> dtypes;
+    int dtype = -1;
+    size_t nin = in_dtypes->size();
+
+    for (size_t i = 0; i < nin; ++i) {
+      if (dtype == -1) {
+        dtype = in_dtypes->at(i);
+      } else {
+        CHECK(in_dtypes->at(i) == -1 ||
+              in_dtypes->at(i) == dtype) <<
+          "This operator only support homogenous input types";
+      }
+    }
+
+    in_dtypes->clear();
+    for (size_t i = 0; i < nin; ++i) {
+      dtypes.push_back(dtype);
+      in_dtypes->push_back(dtype);
+    }
+
+    size_t nout = out_dtypes->size();
+    out_dtypes->clear();
+    for (size_t i = 0; i < nout; ++i) {
+      dtypes.push_back(dtype);
+      out_dtypes->push_back(dtype);
+    }
+
+    // This is a ugly hack...
+    JLNDArrayOpProp* nc_this = const_cast<JLNDArrayOpProp*>(this);
+
+    // ndtypes contains [[in_dtypes], [out_dtypes]]
+    nc_this->param_.f_dtypes_.clear();
+    nc_this->param_.f_dtypes_.insert(std::end(this->param_.f_dtypes_), std::begin(dtypes), std::end(dtypes));
+    // backwards call is (in_grads..., out_grads..., in_data..., out_data...)
+    nc_this->param_.b_dtypes_.clear();
+    nc_this->param_.b_dtypes_.insert(std::end(this->param_.b_dtypes_), std::begin(dtypes), std::end(dtypes));
+    nc_this->param_.b_dtypes_.insert(std::end(this->param_.b_dtypes_), std::begin(dtypes), std::end(dtypes));
+
     return true;
   }
 

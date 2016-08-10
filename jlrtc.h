@@ -12,8 +12,9 @@ class JLRtc {
   public:
     JLRtc() {};
     JLRtc(const std::string& name,
-          std::vector<NDArray> const& args,
           char* ptx,
+          std::vector<size_t>& ndims,
+          std::vector<int>& dtypes,
           unsigned int grid_dim_X,
           unsigned int grid_dim_Y,
           unsigned int grid_dim_Z,
@@ -29,7 +30,7 @@ class JLRtc {
     std::string name_;
     char* ptx_;
     std::vector<int> dtypes_;
-    std::vector<TShape> shapes_;
+    std::vector<size_t> ndims_;
     std::unordered_map<int, CUmodule> module_;
     std::unordered_map<int, CUfunction> func_;
     unsigned int grid_dim_X_;
