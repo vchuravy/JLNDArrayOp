@@ -146,6 +146,9 @@ class JLNDArrayOpProp : public OperatorProperty {
         sscanf(iter->second.c_str(), "%p", &param_.pinfo);
       }
     }
+
+    param_.num_inputs_ = ListArguments().size();
+    param_.num_outputs_ = ListOutputs().size();
   }
 
   std::map<std::string, std::string> GetParams() const override {
