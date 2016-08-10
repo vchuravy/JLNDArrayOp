@@ -21,7 +21,6 @@
 
 namespace mxnet {
 namespace op {
-
 struct JLNDArrayOpParam : public dmlc::Parameter<JLNDArrayOpParam> {
   void *info;
 
@@ -45,15 +44,20 @@ struct JLNDArrayOpParam : public dmlc::Parameter<JLNDArrayOpParam> {
   }
 };
 
+typedef bool (*GetPtx) (char**, char**, size_t*, int*, void*);
+
 template<typename xpu>
 class JLNDArrayOp : public Operator {
  public:
   explicit JLNDArrayOp(JLNDArrayOpParam p) {
     this->param_ = p;
-    // TODO: Setup JLRtc
-    // call into this->param_.backward/forward to get ptx.
-    // and name?
-    this->forwards_jlrtc_ = JLRtc("", NULL,
+    char* f_ptx;
+    char* f_name;
+    CHECK(((GetPtx)param_.pinfo->forward)(&f_name, &f_ptx,
+                                          this->param_.f_ndims_.data(),
+                                          this->param_.f_dtypes_.data(),
+                                          this->param_.pinfo->p_forward));
+    this->forwards_jlrtc_ = JLRtc(f_name, f_ptx,
                                   this->param_.f_ndims_,
                                   this->param_.f_dtypes_,
                                   this->param_.grid_dim_X,
@@ -63,7 +67,13 @@ class JLNDArrayOp : public Operator {
                                   this->param_.block_dim_Y,
                                   this->param_.block_dim_Z);
 
-    this->backwards_jlrtc_ = JLRtc("", NULL,
+    char* b_ptx;
+    char* b_name;
+    CHECK(((GetPtx)param_.pinfo->backward)(&b_name, &b_ptx,
+                                          this->param_.b_ndims_.data(),
+                                          this->param_.b_dtypes_.data(),
+                                          this->param_.pinfo->p_backward));
+    this->backwards_jlrtc_ = JLRtc(b_name, b_ptx,
                                    this->param_.b_ndims_,
                                    this->param_.b_dtypes_,
                                    this->param_.grid_dim_X,
