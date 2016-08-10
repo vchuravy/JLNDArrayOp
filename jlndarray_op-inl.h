@@ -242,7 +242,7 @@ class JLNDArrayOpProp : public OperatorProperty {
   }
 
   std::string TypeString() const override {
-    return "_NDArray";
+    return "_JLNDArray";
   }
 
   std::vector<int> DeclareBackwardDependency(
